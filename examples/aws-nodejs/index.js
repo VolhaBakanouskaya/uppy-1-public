@@ -9,7 +9,9 @@ const express = require('express')
 const app = express()
 
 const port = process.env.PORT ?? 8080
-const bodyParser = require('body-parser')
+const multer  = require('multer')
+
+const upload = multer()
 
 let s3Client
 const aws = require('aws-sdk')
@@ -28,7 +30,7 @@ function getS3Client () {
   return s3Client
 }
 
-app.use(bodyParser.json())
+app.use(upload.none())
 
 app.get('/', (req, res) => {
   const htmlPath = path.join(__dirname, 'public', 'index.html')
@@ -83,7 +85,7 @@ app.post('/s3/multipart', (req, res, next) => {
     Bucket: process.env.COMPANION_AWS_BUCKET,
     Key,
     ContentType: type,
-    Metadata: metadata,
+    Metadata: JSON.parse(metadata),
   }
 
   return client.createMultipartUpload(params, (err, data) => {
@@ -175,7 +177,7 @@ app.post('/s3/multipart/:uploadId/complete', (req, res, next) => {
   const client = getS3Client()
   const { uploadId } = req.params
   const { key } = req.query
-  const { parts } = req.body
+  const parts = JSON.parse(req.body.parts)
 
   if (typeof key !== 'string') {
     return res.status(400).json({ error: 's3: the object key must be passed as a query parameter. For example: "?key=abc.jpg"' })
