@@ -13,10 +13,13 @@
     <div id="aws-multipart"></div>
     <script type="module">
       import { Uppy, Dashboard, AwsS3Multipart, AwsS3 } from "https://releases.transloadit.com/uppy/v3.9.1/uppy.min.mjs"
-      function toFormData(data) {
-        const f = new URLSearchParams(
-          Object.entries(data).map(([key, value]) => [key, typeof value === 'object' ? JSON.stringify(value) : value]))
-        return f
+      function serialize(data) {
+        return new URLSearchParams(
+          Object.entries(data).map(
+            ([key, value]) =>
+             [key, typeof value === 'object' ? JSON.stringify(value) : value],
+          ),
+        );
       }
       {
         const uppy = new Uppy()
@@ -33,7 +36,7 @@
                 headers: {
                   accept: 'application/json',
                 },
-                body: toFormData({
+                body: serialize({
                   filename: file.name,
                   contentType: file.type,
                 }),
@@ -93,7 +96,7 @@
                 headers: {
                   accept: 'application/json',
                 },
-                body: toFormData({
+                body: serialize({
                   filename: file.name,
                   type: file.type,
                   metadata,
@@ -172,7 +175,7 @@
                 headers: {
                   accept: 'application/json',
                 },
-                body: toFormData({ parts }),
+                body: serialize({ parts }),
                 signal,
               })
 
