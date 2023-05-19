@@ -9,9 +9,7 @@ const express = require('express')
 const app = express()
 
 const port = process.env.PORT ?? 8080
-const multer  = require('multer')
-
-const upload = multer()
+const bodyParser = require('body-parser')
 
 let s3Client
 const aws = require('aws-sdk')
@@ -30,7 +28,7 @@ function getS3Client () {
   return s3Client
 }
 
-app.use(upload.none())
+app.use(bodyParser.urlencoded())
 
 app.get('/', (req, res) => {
   const htmlPath = path.join(__dirname, 'public', 'index.html')

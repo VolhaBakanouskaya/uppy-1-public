@@ -14,8 +14,8 @@
     <script type="module">
       import { Uppy, Dashboard, AwsS3Multipart, AwsS3 } from "https://releases.transloadit.com/uppy/v3.9.1/uppy.min.mjs"
       function toFormData(data) {
-        const f = new FormData
-        Object.entries(data).forEach(([key, value]) => f.append(key, typeof value === 'object' ? JSON.stringify(value) : value))
+        const f = new URLSearchParams(
+          Object.entries(data).map(([key, value]) => [key, typeof value === 'object' ? JSON.stringify(value) : value]))
         return f
       }
       {
