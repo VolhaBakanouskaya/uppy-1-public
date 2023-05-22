@@ -12,20 +12,35 @@
     <h2>AWS S3 multipart</h2>
     <div id="aws-multipart"></div>
     <script type="module">
-      import { Uppy, Dashboard, AwsS3Multipart, AwsS3 } from "https://releases.transloadit.com/uppy/v3.9.1/uppy.min.mjs"
+      import {
+        Uppy,
+        Dashboard,
+        AwsS3Multipart,
+        AwsS3,
+      } from "https://releases.transloadit.com/uppy/v3.9.1/uppy.min.mjs";
+      function* serializeSubPart(key, value) {
+        if (typeof value !== "object") {
+          yield [key, value];
+          return;
+        }
+        if (Array.isArray(value)) {
+          for (const val of value) {
+            yield* serializeSubPart(`${key}[]`, val);
+          }
+          return;
+        }
+        for (const [subkey, val] of Object.entries(value)) {
+          yield* serializeSubPart(key ? `${key}[${subkey}]` : subkey, val);
+        }
+      }
       function serialize(data) {
-        return new URLSearchParams(
-          Object.entries(data).map(
-            ([key, value]) =>
-             [key, typeof value === 'object' ? JSON.stringify(value) : value],
-          ),
-        );
+        return new URLSearchParams(serializeSubPart(null, data));
       }
       {
         const uppy = new Uppy()
           .use(Dashboard, {
             inline: true,
-            target: '#aws-non-multipart',
+            target: "#aws-non-multipart",
           })
           .use(AwsS3, {
             async getUploadParameters (file) {
@@ -72,7 +87,7 @@
         const uppy = new Uppy()
           .use(Dashboard, {
             inline: true,
-            target: '#aws-multipart',
+            target: "#aws-multipart",
           })
           .use(AwsS3Multipart, {
             async createMultipartUpload(file, signal) {

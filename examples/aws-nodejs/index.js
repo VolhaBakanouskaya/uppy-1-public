@@ -28,7 +28,7 @@ function getS3Client () {
   return s3Client
 }
 
-app.use(bodyParser.urlencoded())
+app.use(bodyParser.urlencoded({ extended: true }))
 
 app.get('/', (req, res) => {
   const htmlPath = path.join(__dirname, 'public', 'index.html')
@@ -83,7 +83,7 @@ app.post('/s3/multipart', (req, res, next) => {
     Bucket: process.env.COMPANION_AWS_BUCKET,
     Key,
     ContentType: type,
-    Metadata: JSON.parse(metadata),
+    Metadata: metadata,
   }
 
   return client.createMultipartUpload(params, (err, data) => {
@@ -169,13 +169,13 @@ app.get('/s3/multipart/:uploadId', (req, res, next) => {
 })
 
 function isValidPart (part) {
-  return part && typeof part === 'object' && typeof part.PartNumber === 'number' && typeof part.ETag === 'string'
+  return part && typeof part === 'object' && Number(part.PartNumber) && typeof part.ETag === 'string'
 }
 app.post('/s3/multipart/:uploadId/complete', (req, res, next) => {
   const client = getS3Client()
   const { uploadId } = req.params
   const { key } = req.query
-  const parts = JSON.parse(req.body.parts)
+  const { parts } = req.body
 
   if (typeof key !== 'string') {
     return res.status(400).json({ error: 's3: the object key must be passed as a query parameter. For example: "?key=abc.jpg"' })
