@@ -28,7 +28,7 @@ function getS3Client () {
   return s3Client
 }
 
-app.use(bodyParser.urlencoded({ extended: true }))
+app.use(bodyParser.urlencoded({ extended: true }), bodyParser.json())
 
 app.get('/', (req, res) => {
   const htmlPath = path.join(__dirname, 'public', 'index.html')
@@ -56,11 +56,11 @@ app.post('/sign-s3', (req, res) => {
       next(err)
       return
     }
-    const returnData = {
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.json({
       url: data,
       method: 'PUT',
-    }
-    res.write(JSON.stringify(returnData))
+    })
     res.end()
   })
 })
@@ -91,6 +91,7 @@ app.post('/s3/multipart', (req, res, next) => {
       next(err)
       return
     }
+    res.setHeader('Access-Control-Allow-Origin', '*')
     res.json({
       key: data.Key,
       uploadId: data.UploadId,
@@ -127,6 +128,7 @@ app.get('/s3/multipart/:uploadId/:partNumber', (req, res, next) => {
       next(err)
       return
     }
+    res.setHeader('Access-Control-Allow-Origin', '*')
     res.json({ url, expires })
   })
 })
@@ -196,6 +198,7 @@ app.post('/s3/multipart/:uploadId/complete', (req, res, next) => {
       next(err)
       return
     }
+    res.setHeader('Access-Control-Allow-Origin', '*')
     res.json({
       location: data.Location,
     })
