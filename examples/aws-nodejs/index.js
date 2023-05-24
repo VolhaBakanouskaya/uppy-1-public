@@ -21,13 +21,21 @@ const {
   UploadPartCommand,
 } = require('@aws-sdk/client-s3')
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner')
+const {
+  STSClient,
+  AssumeRoleCommand,
+} = require('@aws-sdk/client-sts')
 
 /**
  * @type {S3Client}
  */
 let s3Client
+/**
+ * @type {STSClient}
+ */
+let stsClient
 
-const expiresIn = 800 // Define how long until a S3 signature expires.
+const expiresIn = 900 // Define how long until a S3 signature expires.
 
 function getS3Client () {
   s3Client ??= new S3Client({
@@ -38,6 +46,16 @@ function getS3Client () {
     },
   })
   return s3Client
+}
+function getSTSClient () {
+  stsClient ??= new STSClient({
+    region: process.env.COMPANION_AWS_REGION,
+    credentials : {
+      accessKeyId: process.env.COMPANION_AWS_KEY,
+      secretAccessKey: process.env.COMPANION_AWS_SECRET,
+    },
+  })
+  return stsClient
 }
 
 app.use(bodyParser.urlencoded({ extended: true }), bodyParser.json())
@@ -67,6 +85,21 @@ app.post('/sign-s3', (req, res, next) => {
       method: 'PUT',
     })
     res.end()
+  }, next)
+})
+
+app.get('/local-sign', (req, res, next) => {
+  getSTSClient().send(new AssumeRoleCommand({
+    // The Amazon Resource Name (ARN) of the role to assume.
+    RoleArn: process.env.COMPANION_AWS_ROLE,
+    // An identifier for the assumed role session.
+    RoleSessionName: 'session1',
+    // The duration, in seconds, of the role session. The value specified
+    // can range from 900 seconds (15 minutes) up to the maximum session
+    // duration set for the role.
+    DurationSeconds: expiresIn,
+  })).then(response => {
+    res.json(response.Credentials)
   }, next)
 })
 
