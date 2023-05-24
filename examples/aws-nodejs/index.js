@@ -88,7 +88,7 @@ app.post('/sign-s3', (req, res, next) => {
   }, next)
 })
 
-app.get('/local-sign', (req, res, next) => {
+app.get('/local-signing', (req, res, next) => {
   getSTSClient().send(new AssumeRoleCommand({
     // The Amazon Resource Name (ARN) of the role to assume.
     RoleArn: process.env.COMPANION_AWS_ROLE,
@@ -99,7 +99,13 @@ app.get('/local-sign', (req, res, next) => {
     // duration set for the role.
     DurationSeconds: expiresIn,
   })).then(response => {
-    res.json(response.Credentials)
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.setHeader('Cache-Control', `public,max-age=${expiresIn}`)
+    res.json({
+      credentials: response.Credentials,
+      bucket: process.env.COMPANION_AWS_BUCKET,
+      region: process.env.COMPANION_AWS_REGION,
+    })
   }, next)
 })
 

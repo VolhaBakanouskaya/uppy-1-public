@@ -1,0 +1,93 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Uppy – AWS upload example</title>
+    <link href="https://releases.transloadit.com/uppy/v3.9.1/uppy.min.css" rel="stylesheet">
+  </head>
+  <body>
+    <h1>AWS upload example</h1>
+    <h2>AWS S3 (non multipart)</h2>
+    <div id="aws-non-multipart"></div>
+    <script type="module">
+      import {
+        Uppy,
+        Dashboard,
+        AwsS3Multipart,
+        AwsS3,
+      } from "https://releases.transloadit.com/uppy/v3.9.1/uppy.min.mjs";
+      import createSignedURL from './createSignedURL.mjs';
+      function* serializeSubPart(key, value) {
+        if (typeof value !== "object") {
+          yield [key, value];
+          return;
+        }
+        if (Array.isArray(value)) {
+          for (const val of value) {
+            yield* serializeSubPart(`${key}[]`, val);
+          }
+          return;
+        }
+        for (const [subkey, val] of Object.entries(value)) {
+          yield* serializeSubPart(key ? `${key}[${subkey}]` : subkey, val);
+        }
+      }
+      function serialize(data) {
+        return new URLSearchParams(serializeSubPart(null, data));
+      }
+      {
+        const uppy = new Uppy()
+          .use(Dashboard, {
+            inline: true,
+            target: "#aws-non-multipart",
+          })
+          .use(AwsS3, {
+            async getUploadParameters (file) {
+              // Send a request to our Express.js signing endpoint.
+              const response = await fetch('http://localhost:8080/local-signing', {
+                method: 'GET',
+                // Send and receive JSON.
+                headers: {
+                  accept: 'application/json',
+                },
+              })
+
+              if (!response.ok) throw new Error('Unsuccessful request', { cause: response })
+
+              // Parse the JSON response.
+              const data = await response.json()
+
+              try {
+                  // Return an object in the correct shape.
+                    return {
+                      method: "PUT",
+                      url: `${await createSignedURL({
+                          accountKey: data.credentials.AccessKeyId,
+                          accountSecret: data.credentials.SecretAccessKey,
+                          sessionToken: data.credentials.SessionToken,
+                          bucketName:data.bucket,
+                          Region: data.region,
+                          Key: `${crypto.randomUUID()}-${file.name}`,
+                        })}`,
+                        // Provide content type header required by S3
+                        headers: {
+                            'Content-Type': file.type,
+                        },
+                    }
+                }catch(err){
+                    debugger
+                }
+            },
+          });
+        
+        uppy.on('complete', (result) => {
+          console.log('Upload complete! We’ve uploaded these files:', result.successful)
+        })
+        
+        uppy.on('upload-success', (file, data) => {
+          console.log('Upload success! We’ve uploaded this file:', file.meta['name'])
+        })
+      }
+    </script>
+  </body>
+</html>
