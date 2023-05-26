@@ -50,6 +50,7 @@
                 headers: {
                   accept: 'application/json',
                 },
+                cache: 'force-cache',
               })
 
               if (!response.ok) throw new Error('Unsuccessful request', { cause: response })
@@ -57,26 +58,22 @@
               // Parse the JSON response.
               const data = await response.json()
 
-              try {
-                  // Return an object in the correct shape.
-                    return {
-                      method: "PUT",
-                      url: `${await createSignedURL({
-                          accountKey: data.credentials.AccessKeyId,
-                          accountSecret: data.credentials.SecretAccessKey,
-                          sessionToken: data.credentials.SessionToken,
-                          bucketName:data.bucket,
-                          Region: data.region,
-                          Key: `${crypto.randomUUID()}-${file.name}`,
-                        })}`,
-                        // Provide content type header required by S3
-                        headers: {
-                            'Content-Type': file.type,
-                        },
-                    }
-                }catch(err){
-                    debugger
-                }
+              // Return an object in the correct shape.
+              return {
+                method: "PUT",
+                url: `${await createSignedURL({
+                  accountKey: data.credentials.AccessKeyId,
+                  accountSecret: data.credentials.SecretAccessKey,
+                  sessionToken: data.credentials.SessionToken,
+                  bucketName:data.bucket,
+                  Region: data.region,
+                  Key: `${crypto.randomUUID()}-${file.name}`,
+                })}`,
+                // Provide content type header required by S3
+                headers: {
+                  'Content-Type': file.type,
+                },
+              }
             },
           });
         
