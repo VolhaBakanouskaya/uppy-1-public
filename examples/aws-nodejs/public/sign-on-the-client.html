@@ -9,6 +9,8 @@
     <h1>AWS upload example</h1>
     <h2>AWS S3 (non multipart)</h2>
     <div id="aws-non-multipart"></div>
+    <h2>AWS S3 multipart</h2>
+    <div id="aws-multipart"></div>
     <script type="module">
       import {
         Uppy,
@@ -16,7 +18,16 @@
         AwsS3Multipart,
         AwsS3,
       } from "https://releases.transloadit.com/uppy/v3.9.1/uppy.min.mjs";
-      import createSignedURL from './createSignedURL.mjs';
+      import createSignedURL from "./createSignedURL.mjs";
+      import {
+        S3Client,
+        CreateMultipartUploadCommand,
+        ListPartsCommand,
+        UploadPartCommand,
+        AbortMultipartUploadCommand,
+        CompleteMultipartUploadCommand,
+      } from "https://esm.sh/@aws-sdk/client-s3@3.342.0";
+
       function* serializeSubPart(key, value) {
         if (typeof value !== "object") {
           yield [key, value];
@@ -42,21 +53,22 @@
             target: "#aws-non-multipart",
           })
           .use(AwsS3, {
-            async getUploadParameters (file) {
+            async getUploadParameters(file) {
               // Send a request to our Express.js signing endpoint.
-              const response = await fetch('http://localhost:8080/local-signing', {
-                method: 'GET',
+              const response = await fetch("http://localhost:8080/local-signing", {
+                method: "GET",
                 // Send and receive JSON.
                 headers: {
-                  accept: 'application/json',
+                  accept: "application/json",
                 },
-                cache: 'force-cache',
-              })
+                cache: "force-cache",
+              });
 
-              if (!response.ok) throw new Error('Unsuccessful request', { cause: response })
+              if (!response.ok)
+                throw new Error("Unsuccessful request", { cause: response });
 
               // Parse the JSON response.
-              const data = await response.json()
+              const data = await response.json();
 
               // Return an object in the correct shape.
               return {
@@ -65,25 +77,218 @@
                   accountKey: data.credentials.AccessKeyId,
                   accountSecret: data.credentials.SecretAccessKey,
                   sessionToken: data.credentials.SessionToken,
-                  bucketName:data.bucket,
+                  bucketName: data.bucket,
                   Region: data.region,
                   Key: `${crypto.randomUUID()}-${file.name}`,
                 })}`,
                 // Provide content type header required by S3
                 headers: {
-                  'Content-Type': file.type,
+                  "Content-Type": file.type,
                 },
-              }
+              };
             },
           });
-        
-        uppy.on('complete', (result) => {
-          console.log('Upload complete! We’ve uploaded these files:', result.successful)
-        })
-        
-        uppy.on('upload-success', (file, data) => {
-          console.log('Upload success! We’ve uploaded this file:', file.meta['name'])
-        })
+
+        uppy.on("complete", (result) => {
+          console.log(
+            "Upload complete! We’ve uploaded these files:",
+            result.successful
+          );
+        });
+
+        uppy.on("upload-success", (file, data) => {
+          console.log("Upload success! We’ve uploaded this file:", file.meta["name"]);
+        });
+      }
+      {
+        let s3Client, bucket;
+        async function initS3Client(signal) {
+          const response = await fetch("http://localhost:8080/local-signing", {
+            method: "GET",
+            // Send and receive JSON.
+            headers: {
+              accept: "application/json",
+            },
+            cache: "force-cache",
+            signal,
+          });
+
+          if (!response.ok)
+            throw new Error("Unsuccessful request", { cause: response });
+
+          // Parse the JSON response.
+          const data = await response.json();
+
+          s3Client = new S3Client({
+            region: data.region,
+            credentials: {
+              accessKeyId: data.credentials.AccessKeyId,
+              secretAccessKey: data.credentials.SecretAccessKey,
+              sessionToken: data.credentials.SessionToken,
+            },
+          });
+          bucket = data.bucket;
+          return s3Client
+        }
+        async function getS3Client(signal) {
+          if (s3Client == null) {
+            s3Client = initS3Client(signal)
+          }
+          return s3Client
+        }
+        async function* listPartsPages(options, signal) {
+          signal?.throwIfAborted();
+
+          const client = await getS3Client(signal);
+          signal?.throwIfAborted();
+
+          let startAt = 0;
+          while (startAt != null) {
+            const data = await client.send(
+              new ListPartsCommand({
+                ...options,
+                PartNumberMarker: startAt,
+              }),
+              { abortSignal: signal }
+            );
+
+            yield data.Parts;
+            if (data.isTruncated) {
+              startAt = data.NextPartNumberMarker;
+            } else {
+              startAt = null;
+            }
+          }
+        }
+        const uppy = new Uppy()
+          .use(Dashboard, {
+            inline: true,
+            target: "#aws-multipart",
+          })
+          .use(AwsS3Multipart, {
+            shouldUseMultipart: true,
+
+            async createMultipartUpload(file, signal) {
+              signal?.throwIfAborted();
+
+              const metadata = {};
+
+              Object.keys(file.meta || {}).forEach((key) => {
+                if (file.meta[key] != null) {
+                  metadata[key] = file.meta[key].toString();
+                }
+              });
+
+              const client = await getS3Client(signal);
+              signal?.throwIfAborted();
+
+              return client
+                .send(
+                  new CreateMultipartUploadCommand({
+                    Bucket: bucket,
+                    Key: `${crypto.randomUUID()}-${file.name}`,
+                    ContentType: file.type,
+                    Metadata: metadata,
+                  }),
+                  { abortSignal: signal }
+                )
+                .then((data) => {
+                  return {
+                    key: data.Key,
+                    uploadId: data.UploadId,
+                  };
+                });
+            },
+
+            async abortMultipartUpload(file, { key, uploadId }, signal) {
+              signal?.throwIfAborted();
+
+              const client = await getS3Client(signal);
+              signal?.throwIfAborted();
+              return client.send(
+                new AbortMultipartUploadCommand({
+                  Bucket: bucket,
+                  Key: key,
+                  UploadId: uploadId,
+                }),
+                { abortSignal: signal }
+              );
+            },
+
+            async signPart(file, { uploadId, key, partNumber, signal }) {
+              signal?.throwIfAborted();
+
+              if (uploadId == null || key == null || partNumber == null) {
+                throw new Error(
+                  "Cannot sign without a key, an uploadId, and a partNumber"
+                );
+              }
+
+              const client = await getS3Client(signal);
+              signal?.throwIfAborted();
+              return {
+                method: "PUT",
+                url: `${await createSignedURL({
+                  accountKey: client.config.credentials.AccessKeyId,
+                  accountSecret: client.config.credentials.SecretAccessKey,
+                  sessionToken: client.config.credentials.SessionToken,
+                  bucketName: bucket,
+                  Region: client.config.region,
+                  Key: key,
+                })}`,
+              }
+            },
+
+            async listParts(file, { key, uploadId }, signal) {
+              const parts = [];
+
+              for await (const page of listPartsPages(
+                {
+                  Bucket: bucket,
+                  Key: key,
+                  UploadId: uploadId,
+                },
+                signal
+              )) {
+                parts.push(...page);
+              }
+
+              return parts;
+            },
+
+            async completeMultipartUpload(file, { key, uploadId, parts }, signal) {
+              signal?.throwIfAborted();
+
+              const client = await getS3Client(signal);
+              signal?.throwIfAborted();
+              const { Location } = await client.send(
+                new CompleteMultipartUploadCommand({
+                  Bucket: bucket,
+                  Key: key,
+                  UploadId: uploadId,
+                  MultipartUpload: {
+                    Parts: parts,
+                  },
+                }),
+                { abortSignal: signal }
+              );
+
+              return {
+                location: Location,
+              };
+            },
+          });
+
+        uppy.on("complete", (result) => {
+          console.log(
+            "Upload complete! We’ve uploaded these files:",
+            result.successful
+          );
+        });
+
+        uppy.on("upload-success", (file, data) => {
+          console.log("Upload success! We’ve uploaded this file:", file.meta["name"]);
+        });
       }
     </script>
   </body>
