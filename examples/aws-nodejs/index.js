@@ -120,35 +120,6 @@ app.post('/sign-s3', (req, res, next) => {
   }, next)
 })
 
-// eslint-disable-next-line
-function createMultipartUploadYo (response) {
-  const myClient = new S3Client({
-    region: process.env.COMPANION_AWS_REGION,
-    credentials: {
-      accessKeyId: response.Credentials.AccessKeyId,
-      secretAccessKey: response.Credentials.SecretAccessKey,
-      sessionToken: response.Credentials.SessionToken,
-    },
-  })
-
-  myClient.send(
-    new CreateMultipartUploadCommand({
-      Bucket: process.env.COMPANION_AWS_BUCKET,
-      Key: `${crypto.randomUUID()}-bla`,
-      ContentType: 'image/jpeg',
-      Metadata: {},
-    }),
-  )
-    .then((data) => {
-      console.log('SUCCESS', data)
-      return {
-        key: data.Key,
-        uploadId: data.UploadId,
-      }
-    })
-    .catch(err => console.log('NO SUCCESS', err))
-}
-
 app.get('/local-signing', (req, res, next) => {
   getSTSClient().send(new GetFederationTokenCommand({
     Name: '123user',

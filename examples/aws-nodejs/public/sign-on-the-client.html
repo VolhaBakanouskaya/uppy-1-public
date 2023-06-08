@@ -225,15 +225,18 @@
               }
 
               const client = await getS3Client(signal);
+              const { accessKeyId, secretAccessKey, sessionToken } = await client.config.credentials()
               signal?.throwIfAborted();
               return {
                 method: "PUT",
                 url: `${await createSignedURL({
-                  accountKey: client.config.credentials.AccessKeyId,
-                  accountSecret: client.config.credentials.SecretAccessKey,
-                  sessionToken: client.config.credentials.SessionToken,
+                  accountKey: accessKeyId,
+                  accountSecret: secretAccessKey,
+                  sessionToken,
+                  uploadId,
+                  partNumber,
                   bucketName: bucket,
-                  Region: client.config.region,
+                  Region: await client.config.region(),
                   Key: key,
                 })}`,
               }

@@ -46,6 +46,7 @@ export default async function createSignedURL ({
   accountKey, accountSecret, sessionToken,
   bucketName,
   Key, Region,
+  uploadId, partNumber,
 }) {
   const Service = 's3'
   const host = `${bucketName}.${Service}.${Region}.amazonaws.com`
@@ -64,7 +65,9 @@ export default async function createSignedURL ({
   url.searchParams.set('X-Amz-Expires', '900')
   url.searchParams.set('X-Amz-Security-Token', sessionToken)
   url.searchParams.set('X-Amz-SignedHeaders', 'host')
-  url.searchParams.set('x-id', 'PutObject')
+  url.searchParams.set('X-id', partNumber && uploadId ? 'UploadPart' : 'PutObject')
+  if (partNumber) url.searchParams.set('partNumber', partNumber)
+  if (uploadId) url.searchParams.set('uploadId', uploadId)
 
   const canonical = createCanonicalRequest({
     CanonicalUri,
