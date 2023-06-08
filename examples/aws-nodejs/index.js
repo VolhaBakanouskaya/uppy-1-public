@@ -23,8 +23,31 @@ const {
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner')
 const {
   STSClient,
-  AssumeRoleCommand,
+  GetFederationTokenCommand,
 } = require('@aws-sdk/client-sts')
+
+const policy = {
+  Version: '2012-10-17',
+  Statement: [
+    {
+      Effect: 'Allow',
+      Action: [
+        's3:PutObject',
+        's3:GetObject',
+        's3:DeleteObject',
+        's3:AbortMultipartUpload',
+        's3:ListMultipartUploadParts',
+        's3:ListBucketMultipartUploads',
+        's3:PutObjectVersionAcl',
+        's3:PutObjectAcl',
+      ],
+      Resource: [
+        `arn:aws:s3:::${process.env.COMPANION_AWS_BUCKET}/*`,
+        `arn:aws:s3:::${process.env.COMPANION_AWS_BUCKET}`,
+      ],
+    },
+  ],
+}
 
 /**
  * @type {S3Client}
@@ -97,17 +120,46 @@ app.post('/sign-s3', (req, res, next) => {
   }, next)
 })
 
+// eslint-disable-next-line
+function createMultipartUploadYo (response) {
+  const myClient = new S3Client({
+    region: process.env.COMPANION_AWS_REGION,
+    credentials: {
+      accessKeyId: response.Credentials.AccessKeyId,
+      secretAccessKey: response.Credentials.SecretAccessKey,
+      sessionToken: response.Credentials.SessionToken,
+    },
+  })
+
+  myClient.send(
+    new CreateMultipartUploadCommand({
+      Bucket: process.env.COMPANION_AWS_BUCKET,
+      Key: `${crypto.randomUUID()}-bla`,
+      ContentType: 'image/jpeg',
+      Metadata: {},
+    }),
+  )
+    .then((data) => {
+      console.log('SUCCESS', data)
+      return {
+        key: data.Key,
+        uploadId: data.UploadId,
+      }
+    })
+    .catch(err => console.log('NO SUCCESS', err))
+}
+
 app.get('/local-signing', (req, res, next) => {
-  getSTSClient().send(new AssumeRoleCommand({
-    // The Amazon Resource Name (ARN) of the role to assume.
-    RoleArn: process.env.COMPANION_AWS_ROLE,
-    // An identifier for the assumed role session.
-    RoleSessionName: 'session1',
+  getSTSClient().send(new GetFederationTokenCommand({
+    Name: '123user',
     // The duration, in seconds, of the role session. The value specified
     // can range from 900 seconds (15 minutes) up to the maximum session
     // duration set for the role.
     DurationSeconds: expiresIn,
+    Policy: JSON.stringify(policy),
   })).then(response => {
+    // Test creating multipart upload from the server — it works
+    // createMultipartUploadYo(response)
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Cache-Control', `public,max-age=${expiresIn}`)
     res.json({
