@@ -46,6 +46,20 @@
       function serialize(data) {
         return new URLSearchParams(serializeSubPart(null, data));
       }
+      let textEncoder
+      function rfc2047encode(data) {
+        textEncoder ??= new TextEncoder
+        const buffer = textEncoder.encode(data)
+        let ret = '=?UTF-8?q?'
+        for (let i = 0; i < buffer.length; i++) {
+          if (buffer[i] < 127 && buffer[i] !== '='.charCodeAt()) {
+            ret += String.fromCharCode(buffer[i])
+          } else {
+            ret += `=${buffer[i].toString(16).toUpperCase()}`
+          }
+        }
+        return ret + '?='
+      }
       {
         const uppy = new Uppy()
           .use(Dashboard, {
@@ -176,7 +190,7 @@
 
               Object.keys(file.meta || {}).forEach((key) => {
                 if (file.meta[key] != null) {
-                  metadata[key] = file.meta[key].toString();
+                  metadata[key] = rfc2047encode(file.meta[key].toString());
                 }
               });
 
@@ -187,7 +201,7 @@
                 .send(
                   new CreateMultipartUploadCommand({
                     Bucket: bucket,
-                    Key: `${crypto.randomUUID()}-${file.name}`,
+                    Key: `${crypto.randomUUID()}-${encodeURIComponent(file.name)}`,
                     ContentType: file.type,
                     Metadata: metadata,
                   }),
