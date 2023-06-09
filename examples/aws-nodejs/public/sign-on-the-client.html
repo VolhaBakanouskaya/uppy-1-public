@@ -167,6 +167,7 @@
           })
           .use(AwsS3Multipart, {
             shouldUseMultipart: true,
+            limit: 6,
 
             async createMultipartUpload(file, signal) {
               signal?.throwIfAborted();
@@ -282,7 +283,11 @@
             },
           });
 
+        uppy.on('upload', () => {
+          console.time('multipart sign on client limit 6')
+        })
         uppy.on("complete", (result) => {
+          console.timeEnd('multipart sign on client limit 6')
           console.log(
             "Upload complete! We’ve uploaded these files:",
             result.successful
