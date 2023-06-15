@@ -50,7 +50,7 @@ export default async function createSignedURL ({
 }) {
   const Service = 's3'
   const host = `${bucketName}.${Service}.${Region}.amazonaws.com`
-  const CanonicalUri = `/${Key}`
+  const CanonicalUri = `/${encodeURI(Key)}`
   const payload = 'UNSIGNED-PAYLOAD'
 
   const requestDateTime = new Date().toISOString().replace(/[-:]|\.\d+/g, '')

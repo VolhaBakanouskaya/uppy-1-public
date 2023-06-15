@@ -201,7 +201,7 @@
                 .send(
                   new CreateMultipartUploadCommand({
                     Bucket: bucket,
-                    Key: `${crypto.randomUUID()}-${encodeURIComponent(file.name)}`,
+                    Key: `${crypto.randomUUID()}-${file.name}`,
                     ContentType: file.type,
                     Metadata: metadata,
                   }),
